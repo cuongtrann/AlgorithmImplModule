@@ -12,9 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class ImplementData {
@@ -128,7 +126,8 @@ public class ImplementData {
         // Matrix E egs: if g can exam s
         Sheet sheet = workbook.getSheetAt(4);
         // Duyệt qua các dòng của sheet
-        PROCTOR_SUBJECT_MATRIX = new int[NUMBER_OF_PROCTOR][NUMBER_OF_SUBJECT];
+        PROCTOR_SUBJECT_MATRIX = new int[NUMBER_OF_PROCTOR + 1][NUMBER_OF_SUBJECT + 1];
+        Set<Integer> specificSubject = new HashSet<>();
         for (Row row : sheet) {
             // Duyệt qua các ô của mỗi dòng
             String subjectCode = row.getCell(0).toString();
@@ -141,6 +140,14 @@ public class ImplementData {
                     .findFirst();
             if (foundProctor.isPresent() && foundSubject.isPresent()) {
                 PROCTOR_SUBJECT_MATRIX[foundProctor.get().getIndex()][foundSubject.get().getIndex()] = 1;
+                specificSubject.add(foundSubject.get().getIndex());
+            }
+        }
+        for (int s = 1; s <= NUMBER_OF_SUBJECT ; s++) {
+            if(specificSubject.add(s)){
+                for (int g = 1; g <= NUMBER_OF_PROCTOR ; g++) {
+                    PROCTOR_SUBJECT_MATRIX[g][s] = 1;
+                }
             }
         }
 

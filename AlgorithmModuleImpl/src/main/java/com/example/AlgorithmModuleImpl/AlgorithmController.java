@@ -1,21 +1,26 @@
 package com.example.AlgorithmModuleImpl;
 
-import com.example.AlgorithmModuleImpl.data.ImplementData;
-import com.example.AlgorithmModuleImpl.impl.TabuSearch;
+import com.example.AlgorithmModuleImpl.impl.InitSolution;
+import com.example.AlgorithmModuleImpl.impl.TabuSearchImplement;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class AlgorithmController {
-    private final TabuSearch tabuSearch;
-
-    public AlgorithmController(TabuSearch tabuSearch) {
-        this.tabuSearch = tabuSearch;
+    private final InitSolution initSolution;
+    private final TabuSearchImplement tabuSearchImplement;
+    public AlgorithmController(InitSolution initSolution, TabuSearchImplement tabuSearchImplement) {
+        this.initSolution = initSolution;
+        this.tabuSearchImplement = tabuSearchImplement;
     }
 
     @GetMapping("/")
     public String index() {
-        tabuSearch.initSolution();
-        return "Greetings from Spring Boot!";
+        int[][][] initialSolution = initSolution.initSolution();
+        while (initialSolution == null){
+            initialSolution = initSolution.initSolution();
+        }
+        tabuSearchImplement.tabuSearch(initialSolution, 100, 50);
+        return "success";
     }
 }
