@@ -41,6 +41,8 @@ public class ImplementData {
 
     public static int[][] SUBJECT_SLOT_MATRIX = new int[0][0];
 
+    public static List<Integer> SUBJECT_INDEX_LIST = new ArrayList<>();
+
 
     public ImplementData() {
         // Đọc file và khởi tạo data ở đây
@@ -81,6 +83,8 @@ public class ImplementData {
             subject.setCapacity((int) row.getCell(2).getNumericCellValue());
             subject.setIndex(index);
             GENERAL_SUBJECT_LIST.add(subject);
+            //
+            SUBJECT_INDEX_LIST.add(index);
             index++;
         }
         NUMBER_OF_SUBJECT = GENERAL_SUBJECT_LIST.size();
@@ -100,7 +104,6 @@ public class ImplementData {
             SUBJECT_DURATION_VECTOR[i + 1] = durationBySlot;
             SUBJECT_CAPACITY_VECTOR[i + 1] = capacity;
         }
-        System.out.println();
     }
 
     private void getSubjectSlotData(Workbook workbook) {
@@ -119,7 +122,6 @@ public class ImplementData {
             }
         }
 
-        System.out.println();
     }
 
     private void getProctorSubjectData(Workbook workbook) {
@@ -151,7 +153,6 @@ public class ImplementData {
             }
         }
 
-        System.out.println();
     }
 
     private void getProctorData(Workbook workbook) {
@@ -174,7 +175,6 @@ public class ImplementData {
         for (Proctor proctor : PROCTOR_LIST) {
             PROCTOR_QUOTA_VECTOR[proctor.getIndex()] = (proctor.getQuota());
         }
-        System.out.println();
     }
 
     private void getRoomData(Workbook workbook) {
