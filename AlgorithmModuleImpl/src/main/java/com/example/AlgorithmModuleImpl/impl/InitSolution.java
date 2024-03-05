@@ -85,6 +85,7 @@ public class InitSolution {
         return initSolution;
     }
 
+    // Lấy ra các môn sắp trước
     public Map<Integer, Integer> getSpecialSubjectSlot() {
         Map<Integer, Integer> subjectSlotMap = new HashMap<>();
         for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
