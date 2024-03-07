@@ -1,7 +1,10 @@
 package com.example.AlgorithmModuleImpl.impl;
 
 import com.example.AlgorithmModuleImpl.data.ImplementData;
+import com.example.AlgorithmModuleImpl.model.Solution;
+import org.apache.poi.util.ArrayUtil;
 import org.springframework.stereotype.Service;
+import org.yaml.snakeyaml.util.ArrayUtils;
 
 import java.util.*;
 
@@ -22,25 +25,17 @@ public class TabuSearchImplement {
         double currentCost = calculateCost(currentSolution);
         double bestCost = currentCost;
 
-        List<int[][][]> tabuList = new ArrayList<>();
+        List<int[]> tabuList = new ArrayList<>();
 
         for (int iteration = 0; iteration < maxIterations; iteration++) {
-            List<int[][][]> neighbors = generateNeighbors1(currentSolution);
+            Solution neighbor = generateNeighbors2(currentSolution, tabuList, tabuListSize);
 
-            int[][][] nextSolution = null;
-            double nextCost = Double.MAX_VALUE;
+            double neighborCost = neighbor.getFitness();
+            int [][][] neighborSolution = neighbor.getSolution();
 
-            for (int[][][] neighbor : neighbors) {
-                double neighborCost = calculateCost(neighbor);
-                if (neighborCost < nextCost && !isTabu(neighbor, tabuList)) {
-                    nextSolution = neighbor;
-                    nextCost = neighborCost;
-                }
-            }
-
-            if (nextCost < currentCost) {
-                currentSolution = nextSolution;
-                currentCost = nextCost;
+            if (neighborCost < currentCost) {
+                currentSolution = neighborSolution;
+                currentCost = neighborCost;
 
                 if (currentCost < bestCost) {
                     bestSolution = currentSolution;
@@ -48,11 +43,10 @@ public class TabuSearchImplement {
                 }
             } else {
                 // Điều này có thể cần điều chỉnh tùy thuộc vào chiến lược của bạn
-                currentSolution = nextSolution;
-                currentCost = nextCost;
+                currentSolution = neighborSolution;
+                currentCost = neighborCost;
             }
 
-            updateTabuList(tabuList, currentSolution, tabuListSize);
         }
         double payoffP0 = payoffP0(bestSolution);
         int[] slotStart = slotStartBySubjectMatrix(bestSolution);
@@ -118,6 +112,8 @@ public class TabuSearchImplement {
     private List<int[][][]> generateNeighbors1(int[][][] solution) {
         Set<int[][][]> neiborList = new HashSet<>();
         List<Integer> randomListSubject = new ArrayList<>(ImplementData.SUBJECT_INDEX_LIST);
+        Map<Integer, Integer> specialSubjectSlot = initSolution.getSpecialSubjectSlot();
+        randomListSubject.removeAll(specialSubjectSlot.keySet());
         int[] subjectSlotStart = slotStartBySubjectMatrix(solution);
         while (neiborList.size() < 100) {
             int[][][] copySolution = copy3DArray(solution);
@@ -157,31 +153,102 @@ public class TabuSearchImplement {
         return neiborList.stream().toList();
     }
 
+    // Generate solution bằng cách đổi slot với tất cả các slot còn lại
+    public Solution generateNeighbors2(int [][][] solution, List<int[]> tabuList, int tabuListSize){
+//        List<int[][][]> neiborList = new ArrayList<>();
+        int[] subjectSlotStart = slotStartBySubjectMatrix(solution);
+        List<Integer> listSubject = new ArrayList<>(ImplementData.SUBJECT_INDEX_LIST);
+        Map<Integer, Integer> specialSubjectSlot = initSolution.getSpecialSubjectSlot();
+        listSubject.removeAll(specialSubjectSlot.keySet());
+        int[][][] bestSolution = null;
+        double bestCost = Double.MAX_VALUE;
 
-    private int[][][] copy3DArray(int[][][] original) {
-        int xSize = original.length;
-        int ySize = original[0].length;
-        int zSize = original[0][0].length;
+        for (int i = 0; i < listSubject.size() - 1; i++) {
+            for (int j = i+1; j < listSubject.size(); j++) {
+                int[][][] copySolution = copy3DArray(solution);
+                int loop = 0;
+                int subject1 = listSubject.get(i);
+                int subject2 = listSubject.get(j);
 
-        int[][][] copy = new int[xSize][ySize][zSize];
+                // Lấy ra subject slotStart của solution mới để check xem có trong tabuList không
+                int [] subjectSlotStartCurrent = Arrays.copyOf(subjectSlotStart, subjectSlotStart.length);
+                int tempSlotStart = subjectSlotStartCurrent[subject1];
+                subjectSlotStartCurrent[subject1] = subjectSlotStartCurrent[subject2];
+                subjectSlotStartCurrent[subject2] = tempSlotStart;
+                if(!containsDuplicateArray(tabuList, subjectSlotStartCurrent)){
+                    tabuList.add(subjectSlotStartCurrent);
+                    updateTabuList(tabuList, tabuListSize);
+                }else{
+                    // Đã có thì không cần swap nữa
+                    continue;
+                }
 
-        for (int x = 0; x < xSize; x++) {
-            for (int y = 0; y < ySize; y++) {
-                copy[x][y] = original[x][y].clone();
+                // Check duration nếu mà bị out of slot thì continue luôn, không chạy xuống dưới
+                if(subjectSlotStart[subject2] + ImplementData.SUBJECT_DURATION_VECTOR[subject1] - 1 > ImplementData.TOTAL_EXAM_SLOTS
+                || subjectSlotStart[subject1] + ImplementData.SUBJECT_DURATION_VECTOR[subject2] - 1 > ImplementData.TOTAL_EXAM_SLOTS){
+                    continue;
+                }
+
+                for (int t = subjectSlotStart[subject1]; t < subjectSlotStart[subject1] + ImplementData.SUBJECT_DURATION_VECTOR[subject1]; t++) {
+                    int[] temp = copySolution[subject1][t];
+                    copySolution[subject1][t] = copySolution[subject1][subjectSlotStart[subject2] + loop];
+                    copySolution[subject1][subjectSlotStart[subject2] + loop] = temp;
+                    loop++;
+                }
+
+                loop = 0;
+                for (int t = subjectSlotStart[subject2]; t < subjectSlotStart[subject2] + ImplementData.SUBJECT_DURATION_VECTOR[subject2]; t++) {
+                    int[] temp = copySolution[subject2][t];
+                    copySolution[subject2][t] = copySolution[subject2][subjectSlotStart[subject1] + loop];
+                    copySolution[subject2][subjectSlotStart[subject1] + loop] = temp;
+                    loop++;
+                }
+
+
+                // Tìm ra solution có fitness tốt nhất
+                double neighborCost = calculateCost(copySolution);
+                if (neighborCost < bestCost) {
+                    bestCost = neighborCost;
+                    bestSolution = copySolution;
+                }
             }
         }
 
-        return copy;
+
+        return new Solution(bestSolution, bestCost);
     }
 
-    private static boolean isTabu(int[][][] solution, List<int[][][]> tabuList) {
+    public boolean containsDuplicateArray(List<int[]> tabuList, int[] slotStartList){
+        return tabuList.stream().anyMatch(existingArray -> Arrays.equals(existingArray, slotStartList));
+    }
+
+
+
+
+
+
+    private int[][][] copy3DArray(int[][][] original) {
+        int[][][] destinationArray = new int[original.length][][];
+
+        for (int i = 0; i < original.length; i++) {
+            destinationArray[i] = new int[original[i].length][];
+            for (int j = 0; j < original[i].length; j++) {
+                int[] row = new int[original[i][j].length];
+                System.arraycopy(original[i][j], 0, row, 0, original[i][j].length);
+                destinationArray[i][j] = row;
+            }
+        }
+
+        return destinationArray;
+    }
+
+    private static boolean isTabu(int[][][] solution, Set<int[][][]> tabuList) {
         // Kiểm tra xem giải pháp có trong danh sách tabu không
-        return tabuList.contains(solution);
+        return tabuList.add(solution);
     }
 
-    private static void updateTabuList(List<int[][][]> tabuList, int[][][] solution, int tabuListSize) {
+    private static void updateTabuList(List<int[]> tabuList, int tabuListSize) {
         // Cập nhật danh sách tabu, có thể loại bỏ các phần tử cũ
-        tabuList.add(solution);
         if (tabuList.size() > tabuListSize) {
             tabuList.remove(0);
         }

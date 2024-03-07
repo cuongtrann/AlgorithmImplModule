@@ -20,7 +20,7 @@ public class AlgorithmController {
         while (initialSolution == null){
             initialSolution = initSolution.initSolution();
         }
-        int [][][] finalSolution = tabuSearchImplement.tabuSearch(initialSolution, 50, 50);
+        int [][][] finalSolution = tabuSearchImplement.tabuSearch(initialSolution, 200, 50000);
         return tabuSearchImplement.calculateCost(initialSolution) + "->" + tabuSearchImplement.calculateCost(finalSolution);
     }
 }
