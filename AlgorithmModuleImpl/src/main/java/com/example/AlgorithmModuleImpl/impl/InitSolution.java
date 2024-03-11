@@ -8,6 +8,13 @@ import java.util.*;
 @Service
 public class InitSolution {
     private final AlgorithmUltils algorithmUltils;
+
+    public static double TOTAL_PROCTOR;
+    public static double AVERAGE_PROCTOR_PER_SLOT;
+
+    public static double MAX_PAYOFF_P0;
+
+
     public InitSolution(ImplementData implementData, AlgorithmUltils algorithmUltils) {
 
         this.algorithmUltils = algorithmUltils;
@@ -44,15 +51,15 @@ public class InitSolution {
             int slotStartSpecial = entry.getValue();
             String action = arrangedSubjectToSlot(subject, slotStartSpecial, notScheduleSubject, roomConstraintStore, proctorConstraintStore, studentConstraintStore,
                     listRandomSlot, initSolution);
-            if(action == null){
+            if (action == null) {
                 // Sắp không được (Do thứ tự môn, random mình sắp), trả về null để chạy lại
                 return null;
             }
-            if(action.equals("continue")){
+            if (action.equals("continue")) {
                 // Subject này sắp vào slot này không được, continue để random slot khác
                 continue;
             }
-            if(action.equals("break")){
+            if (action.equals("break")) {
                 // Không thể sắp được (Do đầu vào thiếu room, hoặc proctor)
                 break;
             }
@@ -69,20 +76,55 @@ public class InitSolution {
                 int slotStart = algorithmUltils.getRandomInListInteger(listRandomSlot);
                 String action = arrangedSubjectToSlot(subjectIndex, slotStart, notScheduleSubjectCopy, roomConstraintStore, proctorConstraintStore, studentConstraintStore,
                         listRandomSlot, initSolution);
-                if(action == null){
+                if (action == null) {
                     return null;
                 }
-                if(action.equals("continue")){
+                if (action.equals("continue")) {
                     continue;
                 }
-                if(action.equals("break")){
+                if (action.equals("break")) {
                     break;
                 }
             }
         }
 
+        // Lấy tổng số giám thị dùng và average proctor each slot
+        TOTAL_PROCTOR = getTotalUsedProctor(initSolution);
+        AVERAGE_PROCTOR_PER_SLOT = TOTAL_PROCTOR / ImplementData.TOTAL_EXAM_SLOTS;
+        MAX_PAYOFF_P0 = getMaxPayoffP0();
 
         return initSolution;
+    }
+
+    // Hàm tính maxP0 để đưa về cùng thang điểm
+    private double getMaxPayoffP0() {
+        double maxPayoffP0 = 0;
+        int maxRoomPerSlot = ImplementData.NUMBER_OF_ROOM;
+        // Lấy max của room nếu giám thị bé hơn thì lấy max của giám thị
+        if(ImplementData.NUMBER_OF_PROCTOR < ImplementData.NUMBER_OF_ROOM){
+            maxRoomPerSlot = ImplementData.NUMBER_OF_PROCTOR;
+        }
+        // Chia tối đa phòng trong từng này slot
+        int numberSlotMaxRoom = (int) (TOTAL_PROCTOR / maxRoomPerSlot);
+        // Chia nốt số dư phòng vào 1 slot tiếp theo
+        int remainRoom = (int) (TOTAL_PROCTOR % maxRoomPerSlot);
+        // Số slot còn lại sau khi chia, - 1 bởi vì sắp thêm cho 1 slot dư ra
+        int remainSlot = ImplementData.TOTAL_EXAM_SLOTS - numberSlotMaxRoom - 1;
+        maxPayoffP0 = numberSlotMaxRoom * (maxRoomPerSlot - AVERAGE_PROCTOR_PER_SLOT) + (remainRoom - AVERAGE_PROCTOR_PER_SLOT)
+                + remainSlot * AVERAGE_PROCTOR_PER_SLOT;
+
+        return maxPayoffP0;
+    }
+
+    private double getTotalUsedProctor(int[][][] initSolution) {
+        for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
+            for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
+                for (int g = 1; g <= ImplementData.NUMBER_OF_PROCTOR; g++) {
+                    TOTAL_PROCTOR += initSolution[s][t][g];
+                }
+            }
+        }
+        return TOTAL_PROCTOR;
     }
 
     // Lấy ra các môn sắp trước
@@ -90,8 +132,8 @@ public class InitSolution {
         Map<Integer, Integer> subjectSlotMap = new HashMap<>();
         for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
             for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
-                if(ImplementData.SUBJECT_SLOT_MATRIX[s][t] == 1){
-                    subjectSlotMap.put(s,t);
+                if (ImplementData.SUBJECT_SLOT_MATRIX[s][t] == 1) {
+                    subjectSlotMap.put(s, t);
                     break;
                 }
             }
@@ -157,7 +199,7 @@ public class InitSolution {
 
     public String arrangedSubjectToSlot(Integer subjectIndex, int slotStart, List<Integer> notScheduleSubjectCopy, List<Integer> roomConstraintStore,
                                         List<List<Integer>> proctorConstraintStore, List<Set<Integer>> studentConstraintStore, List<Integer> listRandomSlot,
-                                        int [][][] initSolution){
+                                        int[][][] initSolution) {
         int neededRoom = getNeededRoomBySubject(subjectIndex);
         // Lấy ra subject duration
         int duration = ImplementData.SUBJECT_DURATION_VECTOR[subjectIndex];
@@ -174,7 +216,7 @@ public class InitSolution {
 
         // Check số lượng phòng thi vượt quá tất cả các slot, không thể xếp vào được slot nào
         int count = 0;
-        for (int i = 1; i < roomConstraintStore.size()-duration; i++){
+        for (int i = 1; i < roomConstraintStore.size() - duration; i++) {
             boolean outOfAllRoom = false;
             for (int t = i; t < i + duration; t++) {
                 int availableRoom = roomConstraintStore.get(t);
@@ -182,11 +224,11 @@ public class InitSolution {
                     outOfAllRoom = true;
                 }
             }
-            if(!outOfAllRoom){
+            if (!outOfAllRoom) {
                 count++;
             }
         }
-        if(count == 0){
+        if (count == 0) {
             return null;
         }
 
@@ -221,12 +263,12 @@ public class InitSolution {
         if (scheduleProctor.size() < neededRoom) {
             // Check nếu không thể đủ giám thị ở bất cứ slot nào cho môn đó ở đây
             int checkNumberProctor = 0;
-            for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS - duration ; t++) {
-                if(getScheduleProctor(subjectIndex, t, duration, proctorConstraintStore).size() >= neededRoom){
+            for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS - duration; t++) {
+                if (getScheduleProctor(subjectIndex, t, duration, proctorConstraintStore).size() >= neededRoom) {
                     checkNumberProctor++;
                 }
             }
-            if(checkNumberProctor == 0){
+            if (checkNumberProctor == 0) {
                 // Nếu không thể xếp vào được slot nào thì sắp lại
                 return null;
             }

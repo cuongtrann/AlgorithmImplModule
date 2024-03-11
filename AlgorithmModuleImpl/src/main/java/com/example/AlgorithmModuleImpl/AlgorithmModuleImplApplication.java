@@ -1,5 +1,6 @@
 package com.example.AlgorithmModuleImpl;
 
+import com.example.AlgorithmModuleImpl.impl.Test;
 import com.sun.jdi.IntegerValue;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
@@ -13,21 +14,18 @@ import java.util.*;
 public class AlgorithmModuleImplApplication {
 
 	public static void main(String[] args) {
-		int[] array1 = {1, 2, 3, 4, 5};
-		int[] array2 = {1, 2, 3, 4, 5};
-		int[] array3 = {6, 7, 8, 9, 10};
-
-		List<int[]> set = new ArrayList<>();
-		set.add(array1);
-
-		System.out.println("Contains array1: " + containsArray(set, array1)); // true
-		System.out.println("Contains array2: " + containsArray(set, array2)); // true (vì giá trị giống array1)
-		System.out.println("Contains array3: " + containsArray(set, array3)); // false
+		int payOffMax5 = (int) Test.payOff5Subject();
+		double payOffMax6 = Test.payOff6Subject();
+		System.out.println(payOffMax5);
 		SpringApplication.run(AlgorithmModuleImplApplication.class, args);
 	}
 
-	private static boolean containsArray(List<int[]> list, int[] array) {
-		return list.stream().anyMatch(arr -> Arrays.equals(arr, array));
+	private static String convertArrayToString(int[] array) {
+		StringBuilder stringBuilder = new StringBuilder();
+		for (int num : array) {
+			stringBuilder.append(num).append(",");
+		}
+		return stringBuilder.toString();
 	}
 
 }

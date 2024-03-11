@@ -14,4 +14,12 @@ public class AlgorithmUltils {
         // Trả về phần tử tại chỉ mục ngẫu nhiên
         return listRandomSlot.get(randomIndex);
     }
+
+    public String convertArrayToString(int[] subjectSlotStartCurrent) {
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int num : subjectSlotStartCurrent) {
+            stringBuilder.append(num).append(",");
+        }
+        return stringBuilder.toString();
+    }
 }

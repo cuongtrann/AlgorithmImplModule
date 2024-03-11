@@ -22,16 +22,17 @@ public class TabuSearchImplement {
     public int[][][] tabuSearch(int[][][] initialSolution, int maxIterations, int tabuListSize) {
         int[][][] currentSolution = initialSolution;
         int[][][] bestSolution = initialSolution;
-        double currentCost = calculateCost(currentSolution);
+        int[] subjectSlotStart = slotStartBySubjectMatrix(currentSolution);
+        double currentCost = calculateCostInit(currentSolution, subjectSlotStart);
         double bestCost = currentCost;
 
-        List<int[]> tabuList = new ArrayList<>();
+        Set<Integer> tabuList = new HashSet<>();
 
         for (int iteration = 0; iteration < maxIterations; iteration++) {
             Solution neighbor = generateNeighbors2(currentSolution, tabuList, tabuListSize);
 
             double neighborCost = neighbor.getFitness();
-            int [][][] neighborSolution = neighbor.getSolution();
+            int[][][] neighborSolution = neighbor.getSolution();
 
             if (neighborCost < currentCost) {
                 currentSolution = neighborSolution;
@@ -48,26 +49,93 @@ public class TabuSearchImplement {
             }
 
         }
-        double payoffP0 = payoffP0(bestSolution);
         int[] slotStart = slotStartBySubjectMatrix(bestSolution);
-        double payoffPi = payoffAllPi(slotStart);
-        double payoffLi = payoffAllLi(bestSolution);
+        double fitness = calculateCostInit(bestSolution, slotStart);
         return bestSolution;
     }
 
-    public double calculateCost(int[][][] solution) {
+    // Check full constraint
+    public double calculateCostInit(int[][][] solution, int[] subjectSlotStart) {
         // Thực hiện tính toán chi phí của giải pháp, dựa vào yêu cầu cụ thể của bạn
         // Trả về chi phí của giải pháp
-        int[] subjectSlotStart = slotStartBySubjectMatrix(solution);
         if (!checkHardConstraintBoolean(solution, subjectSlotStart)) {
             return 10000000;
         }
         double payoffP0 = payoffP0(solution);
         double payoffAllLi = payoffAllLi(solution);
         double payoffAllPi = payoffAllPi(subjectSlotStart);
-        double fitnessValue = fitnessValue(payoffP0, payoffAllPi, payoffAllLi);
+        System.out.println("=>" + payoffP0 + "\n" + payoffAllLi + "\n" + payoffAllPi);
+        return fitnessValue(payoffP0, payoffAllPi, payoffAllLi);
+    }
 
-        return fitnessValue;
+    public double calculateCostNeighbor(int[][][] solution, int[] subjectSlotStart) {
+        // Thực hiện tính toán chi phí của giải pháp, dựa vào yêu cầu cụ thể của bạn
+        // Trả về chi phí của giải pháp
+        if (!checkHardConstraintNeighborBoolean(solution, subjectSlotStart)) {
+            return 10000000;
+        }
+        double payoffP0 = payoffP0(solution);
+        double payoffAllLi = payoffAllLi(solution);
+        double payoffAllPi = payoffAllPi(subjectSlotStart);
+
+        return fitnessValue(payoffP0, payoffAllPi, payoffAllLi);
+    }
+
+    // Bỏ bớt không cần check một số hardConstraint
+    private boolean checkHardConstraintNeighborBoolean(int[][][] solution, int[] subjectSlotStart) {
+        // H8: Các môn có duration > 1 cần sắp sao cho môn đó phải tổ chức trong cùng một buổi
+        for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
+            if (initSolution.isDurationConflict(subjectSlotStart[s], s)) {
+                return false;
+            }
+        }
+
+        //H3: Số lượng phòng thi không được vượt quá số lượng cho phép
+        for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
+            int numberOfRoom = 0;
+            for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
+                for (int g = 1; g <= ImplementData.NUMBER_OF_PROCTOR; g++) {
+                    numberOfRoom += solution[s][t][g];
+                }
+            }
+            if (numberOfRoom > ImplementData.NUMBER_OF_ROOM) {
+                return false;
+            }
+        }
+
+
+        //H6: Trong cùng một ca giám thị chỉ được trông một môn
+        for (int g = 1; g <= ImplementData.NUMBER_OF_PROCTOR; g++) {
+            for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
+                // Số lượng môn giám thị đó phải trông
+                int subjectEachSlot = 0;
+                for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
+                    subjectEachSlot += solution[s][t][g];
+                }
+                if (subjectEachSlot > 1) {
+                    return false;
+                }
+            }
+        }
+
+
+        //H2: Trong cùng một ca sinh viên không được thi 2 môn khác nhau
+        for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
+            Set<Integer> studentEachSlot = new HashSet<>();
+            for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
+                for (int g = 1; g <= ImplementData.NUMBER_OF_PROCTOR; g++) {
+                    if (solution[s][t][g] == 1) {
+                        if (!studentEachSlot.addAll(initSolution.getStudentsCurrentSubject(s))) {
+                            return false;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        return true;
     }
 
 
@@ -154,7 +222,7 @@ public class TabuSearchImplement {
     }
 
     // Generate solution bằng cách đổi slot với tất cả các slot còn lại
-    public Solution generateNeighbors2(int [][][] solution, List<int[]> tabuList, int tabuListSize){
+    public Solution generateNeighbors2(int[][][] solution, Set<Integer> tabuList, int tabuListSize) {
 //        List<int[][][]> neiborList = new ArrayList<>();
         int[] subjectSlotStart = slotStartBySubjectMatrix(solution);
         List<Integer> listSubject = new ArrayList<>(ImplementData.SUBJECT_INDEX_LIST);
@@ -164,30 +232,34 @@ public class TabuSearchImplement {
         double bestCost = Double.MAX_VALUE;
 
         for (int i = 0; i < listSubject.size() - 1; i++) {
-            for (int j = i+1; j < listSubject.size(); j++) {
-                int[][][] copySolution = copy3DArray(solution);
+            for (int j = i + 1; j < listSubject.size(); j++) {
                 int loop = 0;
                 int subject1 = listSubject.get(i);
                 int subject2 = listSubject.get(j);
 
                 // Lấy ra subject slotStart của solution mới để check xem có trong tabuList không
-                int [] subjectSlotStartCurrent = Arrays.copyOf(subjectSlotStart, subjectSlotStart.length);
+                int[] subjectSlotStartCurrent = Arrays.copyOf(subjectSlotStart, subjectSlotStart.length);
                 int tempSlotStart = subjectSlotStartCurrent[subject1];
                 subjectSlotStartCurrent[subject1] = subjectSlotStartCurrent[subject2];
                 subjectSlotStartCurrent[subject2] = tempSlotStart;
-                if(!containsDuplicateArray(tabuList, subjectSlotStartCurrent)){
-                    tabuList.add(subjectSlotStartCurrent);
-                    updateTabuList(tabuList, tabuListSize);
-                }else{
-                    // Đã có thì không cần swap nữa
+
+                // Hash subjectSlotStart để check trùng nhanh hơn
+                int subjectSlotStartCurrentHash = algorithmUltils.convertArrayToString(subjectSlotStartCurrent).hashCode();
+                if (!containsDuplicateArray(tabuList, subjectSlotStartCurrentHash)) {
+                    tabuList.add(subjectSlotStartCurrentHash);
+//                    updateTabuList(tabuList, tabuListSize);
+                } else {
                     continue;
                 }
 
+
                 // Check duration nếu mà bị out of slot thì continue luôn, không chạy xuống dưới
-                if(subjectSlotStart[subject2] + ImplementData.SUBJECT_DURATION_VECTOR[subject1] - 1 > ImplementData.TOTAL_EXAM_SLOTS
-                || subjectSlotStart[subject1] + ImplementData.SUBJECT_DURATION_VECTOR[subject2] - 1 > ImplementData.TOTAL_EXAM_SLOTS){
+                if (subjectSlotStart[subject2] + ImplementData.SUBJECT_DURATION_VECTOR[subject1] - 1 > ImplementData.TOTAL_EXAM_SLOTS
+                        || subjectSlotStart[subject1] + ImplementData.SUBJECT_DURATION_VECTOR[subject2] - 1 > ImplementData.TOTAL_EXAM_SLOTS) {
                     continue;
                 }
+                //
+                int[][][] copySolution = copy3DArray(solution);
 
                 for (int t = subjectSlotStart[subject1]; t < subjectSlotStart[subject1] + ImplementData.SUBJECT_DURATION_VECTOR[subject1]; t++) {
                     int[] temp = copySolution[subject1][t];
@@ -204,9 +276,8 @@ public class TabuSearchImplement {
                     loop++;
                 }
 
-
                 // Tìm ra solution có fitness tốt nhất
-                double neighborCost = calculateCost(copySolution);
+                double neighborCost = calculateCostNeighbor(copySolution, subjectSlotStartCurrent);
                 if (neighborCost < bestCost) {
                     bestCost = neighborCost;
                     bestSolution = copySolution;
@@ -218,14 +289,10 @@ public class TabuSearchImplement {
         return new Solution(bestSolution, bestCost);
     }
 
-    public boolean containsDuplicateArray(List<int[]> tabuList, int[] slotStartList){
-        return tabuList.stream().anyMatch(existingArray -> Arrays.equals(existingArray, slotStartList));
+    // Hàm check trùng trong tabuList
+    public boolean containsDuplicateArray(Set<Integer> tabuList, int slotStartList) {
+        return tabuList.contains(slotStartList);
     }
-
-
-
-
-
 
     private int[][][] copy3DArray(int[][][] original) {
         int[][][] destinationArray = new int[original.length][][];
@@ -247,15 +314,19 @@ public class TabuSearchImplement {
         return tabuList.add(solution);
     }
 
-    private static void updateTabuList(List<int[]> tabuList, int tabuListSize) {
+    private static void updateTabuList(Set<Integer> tabuList, int tabuListSize) {
         // Cập nhật danh sách tabu, có thể loại bỏ các phần tử cũ
         if (tabuList.size() > tabuListSize) {
-            tabuList.remove(0);
+            Iterator<Integer> iterator = tabuList.iterator();
+            if (iterator.hasNext()) {
+                iterator.next();
+                iterator.remove();
+            }
         }
     }
 
     // Lấy ra ma trận Ts => slot bắt đầu thi của môn s
-    private int[] slotStartBySubjectMatrix(int[][][] solution) {
+    public int[] slotStartBySubjectMatrix(int[][][] solution) {
         int[] subjectSlotVector = new int[ImplementData.NUMBER_OF_SUBJECT + 1];
         for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
             boolean slotStart = false;
@@ -277,17 +348,7 @@ public class TabuSearchImplement {
 
     //Hàm tính payoff của P0: Số lượng giám thị đồng đều giữa các ca thi
     public double payoffP0(int[][][] solution) {
-        double averageProctorEachSlot = 0;
         double payoffValue = 0;
-        // Tìm trung bình mỗi slot tối ưu sẽ có bao nhiêu giám thị
-        for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
-            for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
-                for (int g = 1; g <= ImplementData.NUMBER_OF_PROCTOR; g++) {
-                    averageProctorEachSlot += solution[s][t][g];
-                }
-            }
-        }
-        averageProctorEachSlot = averageProctorEachSlot / ImplementData.TOTAL_EXAM_SLOTS;
         for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
             double proctorEachSlot = 0;
             for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
@@ -295,8 +356,10 @@ public class TabuSearchImplement {
                     proctorEachSlot += solution[s][t][g];
                 }
             }
-            payoffValue += Math.pow(proctorEachSlot - averageProctorEachSlot, 2);
+            payoffValue += Math.abs(proctorEachSlot - InitSolution.AVERAGE_PROCTOR_PER_SLOT);
         }
+        // Đưa về thang 10 điểm
+        payoffValue = payoffValue * (10 / InitSolution.MAX_PAYOFF_P0);
         return payoffValue;
     }
 
@@ -316,15 +379,23 @@ public class TabuSearchImplement {
                 }
             }
             examSlotEachStudent.sort(Comparator.reverseOrder());
+            // Khoảng cách tối ưu cho 2 subject liên tiếp
+            int totalSubjectEachStudent = examSlotEachStudent.size();
+            double averageSlotPerSubject = (double) ImplementData.TOTAL_EXAM_SLOTS / totalSubjectEachStudent;
+
+            // Max payoff của sinh viên đó ( Để đưa về cùng thang điểm)
+            double maxPayoffPi = 2 * ImplementData.TOTAL_EXAM_SLOTS - 2 * totalSubjectEachStudent - 3 * averageSlotPerSubject + 3;
+
             for (int i = 0; i < examSlotEachStudent.size() - 1; i++) {
-                payoffPi += Math.pow(examSlotEachStudent.get(i) - examSlotEachStudent.get(i + 1) - (ImplementData.TOTAL_EXAM_SLOTS / examSlotEachStudent.size()), 2);
+                payoffPi += Math.abs(examSlotEachStudent.get(i) - examSlotEachStudent.get(i + 1) - averageSlotPerSubject);
             }
-            payoffAllPi += payoffPi;
+            payoffAllPi += payoffPi * (10 / maxPayoffPi);
         }
+        payoffAllPi = payoffAllPi / ImplementData.NUMBER_OF_STUDENT;
         return payoffAllPi;
     }
 
-    // TO-DO: Hàm tính payoff của All Li (Giám thị)
+    // Hàm tính payoff của All Li (Giám thị)
     public double payoffAllLi(int[][][] solution) {
         // Giám thị có lịch trông thi phải lên ít ngày nhất
         double payoffAllLi = 0;
@@ -344,11 +415,13 @@ public class TabuSearchImplement {
                     proctorSuperviseDay++;
                 }
             }
+            double maxDifferentQuota = Math.max(ImplementData.PROCTOR_QUOTA_VECTOR[g], 42 - ImplementData.PROCTOR_QUOTA_VECTOR[g]);
             // PayoffAllPi
-            payoffAllLi += 0.5 * proctorSuperviseDay + 0.5 * Math.abs(proctorSuperviseSlot - ImplementData.PROCTOR_QUOTA_VECTOR[g]);
+            payoffAllLi += 0.5 * (proctorSuperviseDay * ((double) 10 / ImplementData.NUMBER_OF_EXAM_DAYS))
+                    + 0.5 * (Math.abs(proctorSuperviseSlot - ImplementData.PROCTOR_QUOTA_VECTOR[g]) * (10 / maxDifferentQuota));
         }
 
-
+        payoffAllLi = payoffAllLi/ImplementData.NUMBER_OF_PROCTOR;
         return payoffAllLi;
     }
 
@@ -483,12 +556,12 @@ public class TabuSearchImplement {
             int slotStartSpecial = entry.getValue();
             boolean isValid = false;
             for (int g = 1; g <= ImplementData.NUMBER_OF_PROCTOR; g++) {
-                if(solution[subject][slotStartSpecial][g] == 1){
+                if (solution[subject][slotStartSpecial][g] == 1) {
                     isValid = true;
                     break;
                 }
             }
-            if(!isValid){
+            if (!isValid) {
                 return false;
             }
         }
@@ -516,25 +589,6 @@ public class TabuSearchImplement {
                 if (numberOfProctor != neededRoom) {
                     return false;
                 }
-            }
-        }
-
-
-        // H1: Tất cả các môn đều được sắp lịch thi
-        for (int s = 1; s <= ImplementData.NUMBER_OF_SUBJECT; s++) {
-            // Số giám thị được phân thực tế
-            double numberProctorEachSubject = 0;
-            for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS; t++) {
-                for (int g = 1; g <= ImplementData.NUMBER_OF_PROCTOR; g++) {
-                    numberProctorEachSubject += solution[s][t][g];
-                }
-            }
-            // Số phòng cần tổ chức thi của môn này
-            double neededRoom = initSolution.getNeededRoomBySubject(s);
-            // Số giám thị cần phải phân theo kế hoạch
-            double neededProctor = ImplementData.SUBJECT_DURATION_VECTOR[s] * neededRoom;
-            if (numberProctorEachSubject != neededProctor) {
-                return false;
             }
         }
 
