@@ -223,7 +223,6 @@ public class TabuSearchImplement {
 
     // Generate solution bằng cách đổi slot với tất cả các slot còn lại
     public Solution generateNeighbors2(int[][][] solution, Set<Integer> tabuList, int tabuListSize) {
-//        List<int[][][]> neiborList = new ArrayList<>();
         int[] subjectSlotStart = slotStartBySubjectMatrix(solution);
         List<Integer> listSubject = new ArrayList<>(ImplementData.SUBJECT_INDEX_LIST);
         Map<Integer, Integer> specialSubjectSlot = initSolution.getSpecialSubjectSlot();
@@ -247,11 +246,9 @@ public class TabuSearchImplement {
                 int subjectSlotStartCurrentHash = algorithmUltils.convertArrayToString(subjectSlotStartCurrent).hashCode();
                 if (!containsDuplicateArray(tabuList, subjectSlotStartCurrentHash)) {
                     tabuList.add(subjectSlotStartCurrentHash);
-//                    updateTabuList(tabuList, tabuListSize);
                 } else {
                     continue;
                 }
-
 
                 // Check duration nếu mà bị out of slot thì continue luôn, không chạy xuống dưới
                 if (subjectSlotStart[subject2] + ImplementData.SUBJECT_DURATION_VECTOR[subject1] - 1 > ImplementData.TOTAL_EXAM_SLOTS
@@ -284,7 +281,6 @@ public class TabuSearchImplement {
                 }
             }
         }
-
 
         return new Solution(bestSolution, bestCost);
     }
