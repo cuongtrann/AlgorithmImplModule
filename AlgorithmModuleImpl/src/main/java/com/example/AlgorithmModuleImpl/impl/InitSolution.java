@@ -264,6 +264,10 @@ public class InitSolution {
             // Check nếu không thể đủ giám thị ở bất cứ slot nào cho môn đó ở đây
             int checkNumberProctor = 0;
             for (int t = 1; t <= ImplementData.TOTAL_EXAM_SLOTS - duration; t++) {
+                // Check conflict slot trước
+                if (isDurationConflict(t, subjectIndex)) {
+                    continue;
+                }
                 if (getScheduleProctor(subjectIndex, t, duration, proctorConstraintStore).size() >= neededRoom) {
                     checkNumberProctor++;
                 }
